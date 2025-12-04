@@ -1,17 +1,12 @@
 {
   "split_regex": {
-    "description": "用于分段的正则表达式。默认按双换行符（段落）切割。如果想保留标点，请勿在此处包含标点。",
+    "description": "分段正则表达式。匹配到的字符将被保留在上一段的末尾。例如使用 `[。？！\\n]+` 可以按句号、感叹号、问号或换行符分段。",
     "type": "string",
-    "default": "\\n\\s*\\n"
-  },
-  "clean_regex": {
-    "description": "用于清理文本的正则表达式。匹配到的内容将被删除。默认为空（不清理）。",
-    "type": "string",
-    "default": ""
+    "default": "[。？！\\n]+"
   },
   "delay": {
-    "description": "每条分段消息发送的间隔时间（秒）。",
+    "description": "分段发送间隔(秒)",
     "type": "float",
-    "default": 1.0
+    "default": 1.5
   }
 }
