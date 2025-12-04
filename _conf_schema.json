@@ -1,17 +1,17 @@
 {
   "split_regex": {
-    "description": "用于分段的正则表达式。默认为双换行符。",
+    "description": "用于分段的正则表达式。默认按双换行符（段落）切割。如果想保留标点，请勿在此处包含标点。",
     "type": "string",
     "default": "\\n\\s*\\n"
+  },
+  "clean_regex": {
+    "description": "用于清理文本的正则表达式。匹配到的内容将被删除。默认为空（不清理）。",
+    "type": "string",
+    "default": ""
   },
   "delay": {
     "description": "每条分段消息发送的间隔时间（秒）。",
     "type": "float",
     "default": 1.0
-  },
-  "enable_on_llm_only": {
-    "description": "是否仅对 LLM 响应生效（需配合工作流或特定标识，当前建议对长文本开启）。目前逻辑为对所有超长待发送消息生效。",
-    "type": "bool",
-    "default": true
   }
 }
