@@ -8,9 +8,9 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.provider import LLMResponse
-from astrbot.api.message_components import Plain, BaseMessageComponent, Image, At, Face, Reply
+from astrbot.api.message_components import Plain, BaseMessageComponent, Image, At, Face
 
-@register("message_splitter", "YourName", "智能消息分段插件", "1.5.0")
+@register("message_splitter", "YourName", "智能消息分段插件", "1.3.0")
 class MessageSplitterPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -50,17 +50,16 @@ class MessageSplitterPlugin(Star):
         max_segs = self.config.get("max_segments", 7)
 
         # 3. 获取组件策略配置
-        enable_reply = self.config.get("enable_reply", True)
-
+        # 策略选项: '跟随下段', '跟随上段', '单独', '嵌入'
         strategies = {
             'image': self.config.get("image_strategy", "单独"),
             'at': self.config.get("at_strategy", "跟随下段"),
             'face': self.config.get("face_strategy", "嵌入"),
+            'reply': self.config.get("reply_strategy", "单独"),
             'default': self.config.get("other_media_strategy", "跟随下段")
         }
 
         # 4. 执行分段
-        # 注意：这里不再传入 enable_reply，因为 Reply 组件通常不在原始 chain 中，需要后续手动注入
         segments = self.split_chain_smart(result.chain, split_pattern, smart_mode, strategies)
 
         # 5. 最大分段数限制
@@ -73,27 +72,9 @@ class MessageSplitterPlugin(Star):
             trimmed_segments.append(merged_last_segment)
             segments = trimmed_segments
 
-        # 如果只有一段且不需要清理，直接放行 (让 AstrBot 默认逻辑处理，这样默认的引用回复也能生效)
+        # 如果只有一段且不需要清理，直接放行
         if len(segments) <= 1 and not clean_pattern:
             return
-
-        # -------------------------------------------------------
-        # 关键修复：手动注入 Reply 组件
-        # -------------------------------------------------------
-        if enable_reply and segments:
-            # 获取原消息 ID
-            source_msg_id = event.message_obj.message_id
-            if source_msg_id:
-                # 创建引用组件
-                reply_comp = Reply(id=source_msg_id)
-                
-                # 检查第一段是否已经包含 Reply (防止重复)
-                has_reply = any(isinstance(c, Reply) for c in segments[0])
-                
-                if not has_reply:
-                    # 将 Reply 插入到第一段的最前面
-                    segments[0].insert(0, reply_comp)
-        # -------------------------------------------------------
 
         logger.info(f"[Splitter] 将发送 {len(segments)} 个分段。")
 
@@ -102,7 +83,7 @@ class MessageSplitterPlugin(Star):
             if not segment_chain:
                 continue
 
-            # 应用清理正则 (跳过 Reply 组件)
+            # 应用清理正则
             if clean_pattern:
                 for comp in segment_chain:
                     if isinstance(comp, Plain) and comp.text:
@@ -112,10 +93,9 @@ class MessageSplitterPlugin(Star):
             preview_text = self._get_chain_preview(segment_chain)
             text_content = "".join([c.text for c in segment_chain if isinstance(c, Plain)])
             
-            # 空内容检查 (如果只有 Reply 组件，也视为有效，防止吞掉纯引用)
+            # 空内容检查
             is_empty_text = not text_content
             has_other_components = any(not isinstance(c, Plain) for c in segment_chain)
-            
             if is_empty_text and not has_other_components:
                 continue
 
@@ -134,7 +114,7 @@ class MessageSplitterPlugin(Star):
             except Exception as e:
                 logger.error(f"[Splitter] 发送分段失败: {e}")
 
-        # 7. 清空原始链 (阻止 AstrBot 再次发送)
+        # 7. 清空原始链
         result.chain.clear()
 
     def _get_chain_preview(self, chain: List[BaseMessageComponent]) -> str:
@@ -185,37 +165,43 @@ class MessageSplitterPlugin(Star):
             
             # --- 富媒体组件处理 ---
             else:
+                # 获取组件类型名称 (转小写匹配配置)
                 c_type = type(component).__name__.lower()
                 
-                # 如果原始链中竟然包含了 Reply (极少见)，我们先按 "跟随下段" 处理
-                # 真正的 Reply 注入在 on_decorating_result 中进行
-                if 'reply' in c_type:
-                    current_chain_buffer.append(component)
-                    continue
-
+                # 映射到具体的策略键
                 if 'image' in c_type: strategy = strategies['image']
                 elif 'at' in c_type: strategy = strategies['at']
                 elif 'face' in c_type: strategy = strategies['face']
+                elif 'reply' in c_type: strategy = strategies['reply']
                 else: strategy = strategies['default']
 
                 if strategy == "单独":
+                    # 策略：单独成段
+                    # 1. 提交当前缓冲区
                     if current_chain_buffer:
                         segments.append(current_chain_buffer[:])
                         current_chain_buffer.clear()
+                    # 2. 提交组件本身为一段
                     segments.append([component])
                     
                 elif strategy == "跟随上段":
+                    # 策略：跟随上文
                     if current_chain_buffer:
+                        # 如果缓冲区有内容，直接追加
                         current_chain_buffer.append(component)
                     elif segments:
+                        # 如果缓冲区为空，但有前一段，追加到前一段末尾
                         segments[-1].append(component)
                     else:
+                        # 如果既无缓冲也无前段（消息开头），只能放入缓冲
                         current_chain_buffer.append(component)
                         
                 else: 
-                    # 跟随下段 / 嵌入
+                    # 策略：跟随下段 (跟随下文) 或 嵌入 (嵌入)
+                    # 逻辑上都是放入当前缓冲区，等待后续内容或作为新段落开头
                     current_chain_buffer.append(component)
 
+        # 处理剩余的 buffer
         if current_chain_buffer:
             segments.append(current_chain_buffer)
 
