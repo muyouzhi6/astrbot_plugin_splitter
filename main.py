@@ -50,13 +50,13 @@ class MessageSplitterPlugin(Star):
         max_segs = self.config.get("max_segments", 7)
 
         # 3. 获取组件策略配置
-        # 策略选项: 'follow_next', 'follow_prev', 'alone', 'ignore'
+        # 策略选项: '跟随下段', '跟随上一段文字', '单独', '嵌入'
         strategies = {
-            'image': self.config.get("image_strategy", "alone"),
-            'at': self.config.get("at_strategy", "follow_next"),
-            'face': self.config.get("face_strategy", "ignore"),
-            'reply': self.config.get("reply_strategy", "alone"),
-            'default': self.config.get("other_media_strategy", "follow_next")
+            'image': self.config.get("image_strategy", "单独"),
+            'at': self.config.get("at_strategy", "跟随下段"),
+            'face': self.config.get("face_strategy", "嵌入"),
+            'reply': self.config.get("reply_strategy", "单独"),
+            'default': self.config.get("other_media_strategy", "跟随下段")
         }
 
         # 4. 执行分段
@@ -175,7 +175,7 @@ class MessageSplitterPlugin(Star):
                 elif 'reply' in c_type: strategy = strategies['reply']
                 else: strategy = strategies['default']
 
-                if strategy == "alone":
+                if strategy == "单独":
                     # 策略：单独成段
                     # 1. 提交当前缓冲区
                     if current_chain_buffer:
@@ -184,7 +184,7 @@ class MessageSplitterPlugin(Star):
                     # 2. 提交组件本身为一段
                     segments.append([component])
                     
-                elif strategy == "follow_prev":
+                elif strategy == "跟随上一段文字":
                     # 策略：跟随上文
                     if current_chain_buffer:
                         # 如果缓冲区有内容，直接追加
@@ -197,7 +197,7 @@ class MessageSplitterPlugin(Star):
                         current_chain_buffer.append(component)
                         
                 else: 
-                    # 策略：follow_next (跟随下文) 或 ignore (嵌入)
+                    # 策略：跟随下段 (跟随下文) 或 嵌入 (嵌入)
                     # 逻辑上都是放入当前缓冲区，等待后续内容或作为新段落开头
                     current_chain_buffer.append(component)
 
