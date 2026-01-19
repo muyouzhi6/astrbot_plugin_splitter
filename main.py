@@ -34,6 +34,18 @@ class MessageSplitterPlugin(Star):
         if not result or not result.chain:
             return
 
+        # 1.5 黑名单检查
+        blacklist = self.config.get("blacklist_umo") or []
+        if isinstance(blacklist, str):
+            blacklist = [line.strip() for line in blacklist.splitlines() if line.strip()]
+        blacklist_set = set(blacklist)
+
+        umo = event.unified_msg_origin
+        if not umo:
+            return
+        if umo in blacklist_set:
+            return
+
         # 2. 作用范围检查
         split_scope = self.config.get("split_scope", "llm_only")
         is_llm_reply = getattr(event, "__is_llm_reply", False)

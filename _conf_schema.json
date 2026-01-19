@@ -1,4 +1,10 @@
 {
+  "blacklist_umo": {
+    "description": "黑名单会话列表（unified_msg_origin）",
+    "hint": "在此列表中的会话ID不会触发分段功能。每行一个会话ID。",
+    "type": "list",
+    "default": []
+  },
   "split_mode": {
     "description": "分段识别模式。",
     "hint": "Regex: 使用正则表达式匹配; Simple: 使用指定字符匹配。",
